@@ -1,0 +1,30 @@
+import qbxml from 'qbxml'
+
+
+qbxml.connect({
+    company_file: 'company_file.qbw',
+    user_id: 'user_id',
+    password: 'password',
+    host: 'host',
+    port: 'port',
+    ssl: 'ssl',
+    ssl_cert: 'ssl_cert',
+    ssl_key: 'ssl_key',
+    ssl_ca: 'ssl_ca',
+})
+
+qbxml.query({
+
+use: 'use_identity',
+index: 'index_identity',
+edgeCases: 'edge-CASE_IDENTITY',
+file_identity: 'file_case_identity',
+
+
+})
+
+
+
+
+
+
