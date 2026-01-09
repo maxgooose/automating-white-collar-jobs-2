@@ -1,105 +1,42 @@
 """
 Step 4: Create a Test Invoice in QuickBooks
-Run this AFTER queries work. Use a TEST customer first!
-
-BEFORE RUNNING:
-- Make sure "Test Customer" exists in QuickBooks (or change the name below)
-- Make sure a test item exists (or change "Test Item" below)
+Automatically finds a real customer and item from QB, then creates an invoice.
 """
 from quickbooks_desktop.session_manager import SessionManager
 from datetime import date
+import re
 
 
-def build_invoice_add_xml(
-    customer_name: str,
-    item_name: str,
-    description: str,
-    quantity: int,
-    rate: float,
-    memo: str = "",
-    serial_number: str = "",
-    template_name: str = ""
-) -> str:
-    """Build the InvoiceAddRq body (without envelope)."""
-    
-    # Template line (optional)
-    template_line = ""
-    if template_name:
-        template_line = f"""
-        <TemplateRef>
-          <FullName>{template_name}</FullName>
-        </TemplateRef>"""
-    
-    # Serial number line (optional)
-    serial_line = ""
-    if serial_number:
-        serial_line = f"<SerialNumber>{serial_number}</SerialNumber>"
-    
-    return f"""<InvoiceAddRq>
-      <InvoiceAdd>
-        <CustomerRef>
-          <FullName>{customer_name}</FullName>
-        </CustomerRef>{template_line}
-        <TxnDate>{date.today().isoformat()}</TxnDate>
-        <Memo>{memo}</Memo>
-        <InvoiceLineAdd>
-          <ItemRef>
-            <FullName>{item_name}</FullName>
-          </ItemRef>
-          <Desc>{description}</Desc>
-          <Quantity>{quantity}</Quantity>
-          <Rate>{rate:.2f}</Rate>
-          {serial_line}
-        </InvoiceLineAdd>
-      </InvoiceAdd>
-    </InvoiceAddRq>"""
-
-
-if __name__ == '__main__':
-    # ========================================
-    # CONFIGURE THESE FOR YOUR TEST
-    # ========================================
-    CUSTOMER_NAME = "Test Customer"  # Must exist in QB
-    ITEM_NAME = "Test Item"          # Must exist in QB Items
-    DESCRIPTION = "Test invoice from automation script"
-    QUANTITY = 1
-    RATE = 10.00
-    MEMO = "AUTOMATION-TEST"
-    SERIAL_NUMBER = ""  # Leave empty for first test
-    TEMPLATE_NAME = ""  # Leave empty to use default template
-    # ========================================
-    
-    # Build the request body
-    invoice_body = build_invoice_add_xml(
-        customer_name=CUSTOMER_NAME,
-        item_name=ITEM_NAME,
-        description=DESCRIPTION,
-        quantity=QUANTITY,
-        rate=RATE,
-        memo=MEMO,
-        serial_number=SERIAL_NUMBER,
-        template_name=TEMPLATE_NAME
-    )
-    
-    # Build full envelope
-    full_request = f"""<?xml version="1.0" encoding="utf-8"?>
+def query_first_customer(qb):
+    """Get the first customer name from QuickBooks."""
+    xml = """<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
 <QBXML>
   <QBXMLMsgsRq onError="stopOnError">
-    {invoice_body}
+    <CustomerQueryRq><MaxReturned>1</MaxReturned></CustomerQueryRq>
   </QBXMLMsgsRq>
 </QBXML>"""
-    
-    print("Invoice XML to send:")
-    print(full_request)
-    print("\n" + "="*50)
-    
-    # Confirm before running
-    confirm = input("Create this invoice? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("Cancelled.")
-        exit()
-    
+    response = qb.qbXMLRP.ProcessRequest(qb.ticket, xml)
+    match = re.search(r'<FullName>([^<]+)</FullName>', response)
+    return match.group(1) if match else None
+
+
+def query_first_item(qb):
+    """Get the first service/inventory item from QuickBooks."""
+    xml = """<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <ItemQueryRq><MaxReturned>5</MaxReturned></ItemQueryRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+    response = qb.qbXMLRP.ProcessRequest(qb.ticket, xml)
+    # Find item names (skip subtotals, discounts, etc.)
+    matches = re.findall(r'<FullName>([^<]+)</FullName>', response)
+    return matches[0] if matches else None
+
+
+if __name__ == '__main__':
     qb = SessionManager(application_name="AutomationTest")
     
     try:
@@ -109,8 +46,54 @@ if __name__ == '__main__':
         qb.begin_session()
         print("✓ Session started")
         
+        # Find real customer and item
+        print("\nFinding customer and item...")
+        customer_name = query_first_customer(qb)
+        item_name = query_first_item(qb)
+        
+        if not customer_name:
+            print("❌ No customers found in QuickBooks!")
+            exit(1)
+        if not item_name:
+            print("❌ No items found in QuickBooks!")
+            exit(1)
+            
+        print(f"  Customer: {customer_name}")
+        print(f"  Item: {item_name}")
+        
+        # Build invoice
+        invoice_xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <InvoiceAddRq>
+      <InvoiceAdd>
+        <CustomerRef>
+          <FullName>{customer_name}</FullName>
+        </CustomerRef>
+        <TxnDate>{date.today().isoformat()}</TxnDate>
+        <Memo>AUTOMATION-TEST</Memo>
+        <InvoiceLineAdd>
+          <ItemRef>
+            <FullName>{item_name}</FullName>
+          </ItemRef>
+          <Desc>Test from automation</Desc>
+          <Quantity>1</Quantity>
+          <Rate>10.00</Rate>
+        </InvoiceLineAdd>
+      </InvoiceAdd>
+    </InvoiceAddRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+        
+        print("\n" + "="*50)
+        confirm = input(f"Create invoice for {customer_name} with {item_name}? (yes/no): ").strip().lower()
+        if confirm != "yes":
+            print("Cancelled.")
+            exit()
+        
         print("\nCreating invoice...")
-        response = qb.qbXMLRP.ProcessRequest(qb.ticket, full_request)
+        response = qb.qbXMLRP.ProcessRequest(qb.ticket, invoice_xml)
         
         print("\n" + "="*50)
         print("RESPONSE:")
@@ -118,7 +101,6 @@ if __name__ == '__main__':
         print(response)
         print("="*50)
         
-        # Check for success
         if 'statusCode="0"' in response:
             print("\n✅ INVOICE CREATED SUCCESSFULLY!")
         else:
