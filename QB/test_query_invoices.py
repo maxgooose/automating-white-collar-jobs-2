@@ -5,18 +5,11 @@ This shows the invoice structure before we try creating one.
 from quickbooks_desktop.session_manager import SessionManager
 
 
-# qbXML request to get recent invoices
-INVOICE_QUERY_XML = """<?xml version="1.0" encoding="utf-8"?>
-<?qbxml version="13.0"?>
-<QBXML>
-  <QBXMLMsgsRq onError="stopOnError">
-    <InvoiceQueryRq>
-      <MaxReturned>5</MaxReturned>
-      <IncludeLineItems>true</IncludeLineItems>
-    </InvoiceQueryRq>
-  </QBXMLMsgsRq>
-</QBXML>
-"""
+# qbXML request to get recent invoices (just the request body)
+INVOICE_QUERY_XML = """<InvoiceQueryRq>
+  <MaxReturned>5</MaxReturned>
+  <IncludeLineItems>true</IncludeLineItems>
+</InvoiceQueryRq>"""
 
 
 if __name__ == '__main__':
@@ -32,7 +25,18 @@ if __name__ == '__main__':
         
         # Query invoices
         print("\nQuerying invoices...")
-        response = qb.send_xml(INVOICE_QUERY_XML)
+        
+        # Build the full request envelope
+        full_request = f"""<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    {INVOICE_QUERY_XML}
+  </QBXMLMsgsRq>
+</QBXML>"""
+        
+        # Send directly via the processor
+        response = qb.qbXMLRP.ProcessRequest(qb.ticket, full_request)
         
         print("\n" + "="*50)
         print("RAW RESPONSE:")
@@ -46,7 +50,12 @@ if __name__ == '__main__':
         
     except Exception as e:
         print(f"ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         
     finally:
-        qb.close_qb()
+        if qb.session_begun:
+            qb.end_session()
+        if qb.connection_open:
+            qb.close_connection()
         print("\n✓ Connection closed")

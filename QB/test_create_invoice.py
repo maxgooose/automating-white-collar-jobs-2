@@ -20,7 +20,7 @@ def build_invoice_add_xml(
     serial_number: str = "",
     template_name: str = ""
 ) -> str:
-    """Build qbXML for creating an invoice."""
+    """Build the InvoiceAddRq body (without envelope)."""
     
     # Template line (optional)
     template_line = ""
@@ -35,11 +35,7 @@ def build_invoice_add_xml(
     if serial_number:
         serial_line = f"<SerialNumber>{serial_number}</SerialNumber>"
     
-    return f"""<?xml version="1.0" encoding="utf-8"?>
-<?qbxml version="13.0"?>
-<QBXML>
-  <QBXMLMsgsRq onError="stopOnError">
-    <InvoiceAddRq>
+    return f"""<InvoiceAddRq>
       <InvoiceAdd>
         <CustomerRef>
           <FullName>{customer_name}</FullName>
@@ -56,10 +52,7 @@ def build_invoice_add_xml(
           {serial_line}
         </InvoiceLineAdd>
       </InvoiceAdd>
-    </InvoiceAddRq>
-  </QBXMLMsgsRq>
-</QBXML>
-"""
+    </InvoiceAddRq>"""
 
 
 if __name__ == '__main__':
@@ -76,8 +69,8 @@ if __name__ == '__main__':
     TEMPLATE_NAME = ""  # Leave empty to use default template
     # ========================================
     
-    # Build the XML request
-    invoice_xml = build_invoice_add_xml(
+    # Build the request body
+    invoice_body = build_invoice_add_xml(
         customer_name=CUSTOMER_NAME,
         item_name=ITEM_NAME,
         description=DESCRIPTION,
@@ -88,8 +81,17 @@ if __name__ == '__main__':
         template_name=TEMPLATE_NAME
     )
     
+    # Build full envelope
+    full_request = f"""<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    {invoice_body}
+  </QBXMLMsgsRq>
+</QBXML>"""
+    
     print("Invoice XML to send:")
-    print(invoice_xml)
+    print(full_request)
     print("\n" + "="*50)
     
     # Confirm before running
@@ -108,7 +110,7 @@ if __name__ == '__main__':
         print("✓ Session started")
         
         print("\nCreating invoice...")
-        response = qb.send_xml(invoice_xml)
+        response = qb.qbXMLRP.ProcessRequest(qb.ticket, full_request)
         
         print("\n" + "="*50)
         print("RESPONSE:")
@@ -117,16 +119,19 @@ if __name__ == '__main__':
         print("="*50)
         
         # Check for success
-        if "<InvoiceAddRs statusCode=\"0\"" in response:
+        if 'statusCode="0"' in response:
             print("\n✅ INVOICE CREATED SUCCESSFULLY!")
-        elif "statusCode=\"0\"" in response:
-            print("\n✅ Request successful!")
         else:
             print("\n⚠️  Check the response for errors")
         
     except Exception as e:
         print(f"ERROR: {e}")
+        import traceback
+        traceback.print_exc()
         
     finally:
-        qb.close_qb()
+        if qb.session_begun:
+            qb.end_session()
+        if qb.connection_open:
+            qb.close_connection()
         print("\n✓ Connection closed")
