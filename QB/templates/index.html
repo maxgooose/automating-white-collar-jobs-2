@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #121212;
+            --bg-card: #1a1a1a;
+            --bg-hover: #242424;
+            --border-subtle: #2a2a2a;
+            --border-accent: #333;
+            --text-primary: #e8e8e8;
+            --text-secondary: #888;
+            --text-muted: #555;
+            --accent-green: #00d26a;
+            --accent-green-dim: #00d26a20;
+            --accent-blue: #3b82f6;
+            --font-sans: 'Outfit', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .logo {
+            position: absolute;
+            top: 48px;
+            left: 64px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: 12px;
+            color: var(--text-primary);
+        }
+
+        .logo-subtitle {
+            font-size: 16px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            margin-top: 8px;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 0 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .dropzone {
+            border: 1px solid var(--border-accent);
+            border-radius: 12px;
+            padding: 48px 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--bg-hover);
+        }
+
+        .dropzone:hover,
+        .dropzone.dragover {
+            border-color: var(--accent-green);
+            background: var(--accent-green-dim);
+        }
+
+        .dropzone-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            opacity: 0.6;
+        }
+
+        .dropzone-icon svg {
+            width: 100%;
+            height: 100%;
+            stroke: var(--text-secondary);
+        }
+
+        .dropzone h3 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .dropzone p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .dropzone input {
+            display: none;
+        }
+
+        .file-info {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--bg-hover);
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+
+        .file-info.visible {
+            display: flex;
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--accent-green-dim);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: var(--accent-green);
+        }
+
+        .file-details {
+            flex: 1;
+        }
+
+        .file-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+        }
+
+        .btn-primary {
+            background: var(--accent-green);
+            color: #000;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .btn-primary:hover {
+            background: #00e676;
+            transform: translateY(-1px);
+        }
+
+        .btn-primary:disabled {
+            background: var(--border-accent);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 24px;
+            color: var(--text-secondary);
+        }
+
+        .loading.visible {
+            display: flex;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-accent);
+            border-top-color: var(--accent-green);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Results Section */
+        .results {
+            display: none;
+            margin-top: 32px;
+            padding-top: 32px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .success-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 16px;
+            background: var(--accent-green-dim);
+            border: 1px solid var(--accent-green);
+            border-radius: 10px;
+            margin-bottom: 24px;
+        }
+
+        .success-banner svg {
+            width: 24px;
+            height: 24px;
+            stroke: var(--accent-green);
+            flex-shrink: 0;
+        }
+
+        .success-banner .text {
+            flex: 1;
+        }
+
+        .success-banner .title {
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .success-banner .subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+
+        .invoice-header {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .invoice-field {
+            padding: 12px;
+            background: var(--bg-hover);
+            border-radius: 8px;
+        }
+
+        .invoice-field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .invoice-field span {
+            font-size: 14px;
+            font-family: var(--font-mono);
+        }
+
+        .line-items-header {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .line-items {
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            overflow: hidden;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .line-item {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 16px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-subtle);
+            font-size: 13px;
+            align-items: center;
+        }
+
+        .line-item:last-child {
+            border-bottom: none;
+        }
+
+        .line-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .item-name {
+            font-weight: 500;
+        }
+
+        .item-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+        
+
+        .item-qty {
+            font-family: var(--font-mono);
+            color: var(--text-secondary);
+            text-align: center;
+            min-width: 60px;
+        }
+
+        .item-amount {
+            font-family: var(--font-mono);
+            font-weight: 500;
+            text-align: right;
+            min-width: 80px;
+        }
+
+        .summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 16px;
+            background: var(--bg-hover);
+            border-radius: 10px;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .total {
+            text-align: right;
+        }
+
+        .total-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .total-value {
+            font-size: 28px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+            color: var(--accent-green);
+        }
+
+        .error {
+            display: none;
+            padding: 16px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            border-radius: 10px;
+            color: #ef4444;
+            margin-top: 16px;
+        }
+
+        .error.visible {
+            display: block;
+        }
+
+        /* Custom scrollbar */
+        .line-items::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .line-items::-webkit-scrollbar-track {
+            background: var(--bg-card);
+        }
+
+        .line-items::-webkit-scrollbar-thumb {
+            background: var(--border-accent);
+            border-radius: 3px;
+        }
+
+        .line-items::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">
+        <div class="logo-text">UED</div>
+        <div class="logo-subtitle">Universal Executive Dashboard</div>
+    </div>
+    <div class="main">
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>Invoice Generator</h1>
+                <p>Upload Report to generate the invoice</p>
+            </div>
+
+            <div class="dropzone" id="dropzone">
+                <div class="dropzone-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                </div>
+                <h3>Drop your Excel file here</h3>
+                <p>or click to browse (.xlsx, .xls)</p>
+                <input type="file" id="fileInput" accept=".xlsx,.xls">
+            </div>
+
+            <div class="file-info" id="fileInfo">
+                <div class="file-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                </div>
+                <div class="file-details">
+                    <div class="file-name" id="fileName">filename.xlsx</div>
+                    <div class="file-size" id="fileSize">0 KB</div>
+                </div>
+            </div>
+
+            <button class="btn btn-primary" id="generateBtn" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Generate Invoice
+            </button>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <span>Processing file...</span>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="results" id="results">
+                <div class="success-banner">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div class="text">
+                        <div class="title" id="successTitle">Invoice Created Successfully</div>
+                        <div class="subtitle" id="successSubtitle">INV-12345</div>
+                    </div>
+                </div>
+
+                <div class="invoice-header">
+                    <div class="invoice-field">
+                        <label>Customer</label>
+                        <span id="invoiceCustomer">-</span>
+                    </div>
+                    <div class="invoice-field">
+                        <label>Invoice #</label>
+                        <span id="invoiceNumber">-</span>
+                    </div>
+                    <div class="invoice-field">
+                        <label>Date</label>
+                        <span id="invoiceDate">-</span>
+                    </div>
+                    <div class="invoice-field">
+                        <label>Reference</label>
+                        <span id="invoiceMemo">-</span>
+                    </div>
+                </div>
+
+                <div class="line-items-header">Line Items</div>
+                <div class="line-items" id="lineItems">
+                    <!-- Populated by JS -->
+                </div>
+
+                <div class="summary">
+                    <div class="summary-stats">
+                        <div class="stat">
+                            <div class="stat-value" id="statLines">0</div>
+                            <div class="stat-label">Line Items</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-value" id="statUnits">0</div>
+                            <div class="stat-label">Total Units</div>
+                        </div>
+                    </div>
+                    <div class="total">
+                        <div class="total-label">Total Amount</div>
+                        <div class="total-value" id="totalAmount">$0.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <script>
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const generateBtn = document.getElementById('generateBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+
+        let selectedFile = null;
+
+        // Drag and drop handlers
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        dropzone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                showError('Please select an Excel file (.xlsx or .xls)');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileInfo.classList.add('visible');
+            generateBtn.disabled = false;
+            error.classList.remove('visible');
+            results.classList.remove('visible');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            generateBtn.disabled = true;
+            loading.classList.add('visible');
+            error.classList.remove('visible');
+            results.classList.remove('visible');
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Upload failed');
+                }
+
+                displayResults(data);
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                loading.classList.remove('visible');
+                generateBtn.disabled = false;
+            }
+        });
+
+        function showError(message) {
+            error.textContent = message;
+            error.classList.add('visible');
+        }
+
+        function displayResults(data) {
+            const invoice = data.invoice;
+
+            document.getElementById('successTitle').textContent = data.message;
+            document.getElementById('successSubtitle').textContent = `Transaction ID: ${invoice.txn_id}`;
+            
+            document.getElementById('invoiceCustomer').textContent = invoice.customer;
+            document.getElementById('invoiceNumber').textContent = invoice.number;
+            document.getElementById('invoiceDate').textContent = invoice.date;
+            document.getElementById('invoiceMemo').textContent = invoice.memo;
+
+            // Populate line items
+            const lineItemsContainer = document.getElementById('lineItems');
+            lineItemsContainer.innerHTML = invoice.line_items.map(item => `
+                <div class="line-item">
+                    <div>
+                        <div class="item-name">${item.item_ref}</div>
+                        <div class="item-desc">${item.description}</div>
+                    </div>
+                    <div class="item-qty">${item.quantity} units</div>
+                    <div class="item-amount">$${item.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</div>
+                </div>
+            `).join('');
+
+            // Summary stats
+            document.getElementById('statLines').textContent = invoice.summary.line_count;
+            document.getElementById('statUnits').textContent = invoice.summary.total_units.toLocaleString();
+            document.getElementById('totalAmount').textContent = '$' + invoice.summary.total.toLocaleString('en-US', {minimumFractionDigits: 2});
+
+            results.classList.add('visible');
+        }
+    </script>
+</body>
+</html>
