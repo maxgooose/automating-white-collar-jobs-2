@@ -1,8 +1,11 @@
 """
 Step 3: Query Invoices from QuickBooks
 This shows the invoice structure before we try creating one.
+Saves response to Desktop as XML file.
 """
 from quickbooks_desktop.session_manager import SessionManager
+from datetime import datetime
+import os
 
 
 # qbXML request to get recent invoices (just the request body)
@@ -44,9 +47,16 @@ if __name__ == '__main__':
         print(response)
         print("="*50)
         
-        # The response shows the invoice structure
-        # Look for: CustomerRef, TemplateRef, TxnDate, InvoiceLine, etc.
-        # This will inform how to build InvoiceAdd requests
+        # Save to Desktop
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"QB_Invoices_{timestamp}.xml"
+        filepath = os.path.join(desktop, filename)
+        
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(response)
+        
+        print(f"\n✅ Saved to: {filepath}")
         
     except Exception as e:
         print(f"ERROR: {e}")
