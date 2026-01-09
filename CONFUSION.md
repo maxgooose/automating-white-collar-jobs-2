@@ -122,6 +122,10 @@ Documenting unclear areas and unresolved questions.
 
 ---
 
+there is no confusion on my end
+i act as a word of God.
+i act as a word of God.
+
 ## Unresolved Decisions
 
 - [ ] Which integration approach to use (SDK, QBWC, Conductor, other)

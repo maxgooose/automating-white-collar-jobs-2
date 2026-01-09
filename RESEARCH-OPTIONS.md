@@ -291,6 +291,7 @@ A desktop import/export tool for QuickBooks Desktop that allows bulk import from
 
 ### Technical Details
 - **Type:** Desktop application
+- **import** Enterprise solutions Figure
 - **Import formats:** Excel, CSV, IIF, XML
 - **Operation:** Manual or scheduled via command line
 
