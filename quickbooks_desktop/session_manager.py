@@ -43,8 +43,13 @@ class SessionManager:
         
         try:
             import win32com.client
-            pythoncom.CoInitialize()
-            self.com_initialized = True
+            # Try to initialize COM - may already be initialized by caller (e.g., create_qb_invoice)
+            try:
+                pythoncom.CoInitialize()
+                self.com_initialized = True
+            except Exception:
+                # COM already initialized in this thread, that's fine
+                self.com_initialized = False
             self.qbXMLRP = win32com.client.Dispatch("QBXMLRP2.RequestProcessor")
             self.qbXMLRP.OpenConnection("", self.application_name)
             self.connection_open = True
@@ -117,6 +122,7 @@ class SessionManager:
                 pass  # Ignore errors on cleanup
             self.connection_open = False
         
+        # Only uninitialize COM if WE initialized it (not the caller)
         if self.com_initialized:
             try:
                 pythoncom.CoUninitialize()

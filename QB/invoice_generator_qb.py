@@ -6,6 +6,7 @@ import re
 import sys
 import os
 from datetime import datetime
+import pythoncom
 
 # Add parent directory to path for quickbooks_desktop imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -136,6 +137,10 @@ def create_qb_invoice(parsed_data: dict) -> dict:
     Example: 
         parsed data -> excel parser -> parsed_data -> invoice generator -> invoice xml -> send to qb -> response -> return to app.py
     """
+    # Ensure COM is initialized for THIS thread (Flask may use different threads)
+    # This is critical - COM objects are thread-specific and will crash if accessed from wrong thread
+    pythoncom.CoInitialize()
+    
     qb = SessionManager()
     
     try:
@@ -324,7 +329,10 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         }
         
     finally:
+        # Clean up QB session first
         if qb.session_begun:
             qb.end_session()
         if qb.connection_open:
             qb.close_connection()
+        # Then uninitialize COM for this thread
+        pythoncom.CoUninitialize()

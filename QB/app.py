@@ -310,4 +310,6 @@ def test_setup_data():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Single-threaded mode required for QuickBooks COM operations
+    # COM objects are thread-specific and QB SDK is not thread-safe
+    app.run(debug=True, port=5000, threaded=False)
