@@ -49,57 +49,18 @@ def get_first_customer(qb):
     return match.group(1) if match else None
 
 
-def item_exists(qb, item_name):
-    """Check if an item exists in QuickBooks."""
-    xml = f"""<?xml version="1.0" encoding="utf-8"?>
+def get_first_item(qb):
+    """Query QB for the first available item to use as generic line item."""
+    xml = """<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
 <QBXML>
   <QBXMLMsgsRq onError="stopOnError">
-    <ItemQueryRq>
-      <FullName>{escape_xml(item_name)}</FullName>
-    </ItemQueryRq>
+    <ItemQueryRq><MaxReturned>1</MaxReturned></ItemQueryRq>
   </QBXMLMsgsRq>
 </QBXML>"""
     response = qb.send_request(xml)
-    return 'statusCode="0"' in response and '<FullName>' in response
-
-
-def create_service_item(qb, item_name, description="", price=0.00):
-    """Create a service item in QuickBooks if it doesn't exist."""
-    if item_exists(qb, item_name):
-        print(f"  Item already exists: {item_name}")
-        return True
-    
-    print(f"  Creating item: {item_name}")
-    xml = f"""<?xml version="1.0" encoding="utf-8"?>
-<?qbxml version="13.0"?>
-<QBXML>
-  <QBXMLMsgsRq onError="stopOnError">
-    <ItemServiceAddRq>
-      <ItemServiceAdd>
-        <Name>{escape_xml(item_name[:31])}</Name>
-        <SalesOrPurchase>
-          <Desc>{escape_xml(description or item_name)}</Desc>
-          <Price>{price:.2f}</Price>
-          <AccountRef>
-            <FullName>Sales</FullName>
-          </AccountRef>
-        </SalesOrPurchase>
-      </ItemServiceAdd>
-    </ItemServiceAddRq>
-  </QBXMLMsgsRq>
-</QBXML>"""
-    
-    response = qb.send_request(xml)
-    if 'statusCode="0"' in response:
-        print(f"    ✓ Created successfully")
-        return True
-    else:
-        # Extract error
-        error_match = re.search(r'statusMessage="([^"]+)"', response)
-        error_msg = error_match.group(1) if error_match else "Unknown error"
-        print(f"    ✗ Failed: {error_msg}")
-        return False
+    match = re.search(r'<FullName>([^<]+)</FullName>', response)
+    return match.group(1) if match else None
 
 
 def create_qb_invoice(parsed_data: dict) -> dict:
@@ -130,49 +91,31 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             raise Exception("No customers found in QuickBooks. Please add a customer first.")
         print(f"Using QB customer: {customer}")
         
-        # Step 1: Collect unique item names and ensure they exist in QB
-        print("\n--- Validating/Creating Items in QuickBooks ---")
-        unique_items = set()
-        for item in parsed_data['line_items']:
-            unique_items.add(item['part_number'])
+        # Get existing item from QB (use as generic item for ALL line items)
+        # This is the same approach the working test invoice uses
+        generic_item = get_first_item(qb)
+        if not generic_item:
+            raise Exception("No items found in QuickBooks. Please add an item first.")
+        print(f"Using QB item: {generic_item}")
         
-        print(f"Found {len(unique_items)} unique items to validate")
-        
-        items_created = 0
-        items_existed = 0
-        items_failed = 0
-        
-        for item_name in unique_items:
-            # Try to create item (will skip if exists)
-            if item_exists(qb, item_name):
-                items_existed += 1
-                print(f"  ✓ Exists: {item_name}")
-            else:
-                if create_service_item(qb, item_name, item_name, 0.00):
-                    items_created += 1
-                else:
-                    items_failed += 1
-        
-        print(f"\nItem summary: {items_existed} existed, {items_created} created, {items_failed} failed")
-        
-        if items_failed > 0:
-            raise Exception(f"Failed to create {items_failed} items in QuickBooks")
-        
-        # Step 2: Build line items XML using actual part numbers
-        print("\n--- Building Invoice XML ---")
+        # Build line items XML
+        # Use the generic item for all lines, put part number + description in Desc field
+        print(f"\n--- Building Invoice with {len(parsed_data['line_items'])} line items ---")
         lines_xml = ""
         for item in parsed_data['line_items']:
+            # Combine part number and description for the line description
             part_number = item['part_number']
             description = item['description']
+            full_desc = f"{part_number} | {description}"
             quantity = int(item['quantity']) if item['quantity'] else 1
             rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
             
             lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
-            <FullName>{escape_xml(part_number)}</FullName>
+            <FullName>{escape_xml(generic_item)}</FullName>
           </ItemRef>
-          <Desc>{escape_xml(description)}</Desc>
+          <Desc>{escape_xml(full_desc)}</Desc>
           <Quantity>{quantity}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
