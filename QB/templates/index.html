@@ -700,6 +700,12 @@
         }
 
         function displayResults(data) {
+            // Check if invoice creation failed
+            if (!data.success || !data.invoice) {
+                showError(data.message || data.error || 'Invoice creation failed');
+                return;
+            }
+
             const invoice = data.invoice;
 
             document.getElementById('successTitle').textContent = data.message;
