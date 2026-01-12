@@ -162,11 +162,14 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             raise
         
         # Build line items XML - use the EXISTING QB item, put part details in description
-        # TEMP: Limit to 5 line items to test if volume is the issue
-        line_items_to_process = parsed_data['line_items'][:5]
-        print(f"\n--- Step 4: Building Invoice XML ({len(line_items_to_process)} line items, limited from {len(parsed_data['line_items'])}) ---")
+        # QB has a limit of 250 quantity per line - split larger quantities into multiple lines
+        MAX_QTY_PER_LINE = 250
+        
+        print(f"\n--- Step 4: Building Invoice XML ({len(parsed_data['line_items'])} line items) ---")
         lines_xml = ""
-        for idx, item in enumerate(line_items_to_process, 1):
+        line_count = 0
+        
+        for idx, item in enumerate(parsed_data['line_items'], 1):
             part_number = escape_xml(str(item.get('part_number', '') or ''))
             description = escape_xml(str(item.get('description', '') or ''))
             
@@ -189,17 +192,35 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             except (ValueError, TypeError):
                 rate = 0.00
             
-            print(f"  Line {idx}: qty={quantity}, rate={rate:.2f}, desc={full_desc[:50]}...")
-            
-            lines_xml += f"""
+            # Split quantities over 250 into multiple lines
+            remaining_qty = quantity
+            split_num = 0
+            while remaining_qty > 0:
+                line_qty = min(remaining_qty, MAX_QTY_PER_LINE)
+                remaining_qty -= line_qty
+                split_num += 1
+                line_count += 1
+                
+                # Add split indicator to description if this item was split
+                line_desc = full_desc
+                if quantity > MAX_QTY_PER_LINE:
+                    line_desc = f"{full_desc} (part {split_num})"
+                
+                if split_num == 1:
+                    print(f"  Line {idx}: qty={quantity}, rate={rate:.2f}, desc={full_desc[:50]}..." + 
+                          (f" [SPLIT into {(quantity // MAX_QTY_PER_LINE) + (1 if quantity % MAX_QTY_PER_LINE else 0)} lines]" if quantity > MAX_QTY_PER_LINE else ""))
+                
+                lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
             <FullName>{escape_xml(qb_item)}</FullName>
           </ItemRef>
-          <Desc>{full_desc}</Desc>
-          <Quantity>{quantity}</Quantity>
+          <Desc>{line_desc}</Desc>
+          <Quantity>{line_qty}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
+        
+        print(f"  Total XML lines: {line_count}")
         
         # Build full invoice XML
         memo = escape_xml(f"RR# {header['rr_number']} - {header['order_number']}")
