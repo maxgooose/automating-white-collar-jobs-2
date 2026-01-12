@@ -2,6 +2,11 @@
 QuickBooks Desktop Session Manager
 Wraps the QB SDK connection lifecycle for Python.
 """
+import sys
+# CRITICAL: Set COM threading model BEFORE importing pythoncom
+# 0 = COINIT_MULTITHREADED (required for Flask/web apps)
+if not hasattr(sys, 'coinit_flags'):
+    sys.coinit_flags = 0
 import pythoncom
 
 
