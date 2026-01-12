@@ -35,6 +35,15 @@ def escape_xml(text):
     return text
 
 
+def get_qb_item_name(part_number):
+    """
+    Get QB-safe item name (max 31 chars).
+    QuickBooks has a 31 character limit for item names.
+    Use this consistently everywhere to avoid mismatches.
+    """
+    return part_number[:31]
+
+
 def get_first_customer(qb):
     """Query QB for the first available customer."""
     xml = """<?xml version="1.0" encoding="utf-8"?>
@@ -67,13 +76,14 @@ def get_income_account(qb):
 
 
 def item_exists(qb, item_name):
-    """Check if an item exists in QuickBooks."""
+    """Check if an item exists in QuickBooks (using truncated name)."""
+    qb_name = get_qb_item_name(item_name)  # Use consistent truncated name
     xml = f"""<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
 <QBXML>
   <QBXMLMsgsRq onError="stopOnError">
     <ItemQueryRq>
-      <FullName>{escape_xml(item_name)}</FullName>
+      <FullName>{escape_xml(qb_name)}</FullName>
     </ItemQueryRq>
   </QBXMLMsgsRq>
 </QBXML>"""
@@ -82,9 +92,8 @@ def item_exists(qb, item_name):
 
 
 def create_service_item(qb, item_name, income_account, description="", price=0.00):
-    """Create a service item in QuickBooks."""
-    # QB item names have a 31 character limit
-    short_name = item_name[:31]
+    """Create a service item in QuickBooks (using truncated name)."""
+    qb_name = get_qb_item_name(item_name)  # Use consistent truncated name
     
     xml = f"""<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
@@ -92,7 +101,7 @@ def create_service_item(qb, item_name, income_account, description="", price=0.0
   <QBXMLMsgsRq onError="stopOnError">
     <ItemServiceAddRq>
       <ItemServiceAdd>
-        <Name>{escape_xml(short_name)}</Name>
+        <Name>{escape_xml(qb_name)}</Name>
         <SalesOrPurchase>
           <Desc>{escape_xml(description or item_name)}</Desc>
           <Price>{price:.2f}</Price>
@@ -178,21 +187,24 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             # Show first few failures
             raise Exception(f"Failed to create items: {items_failed[0][0]} - {items_failed[0][1]}")
         
-        # Step 2: Build line items XML with actual part numbers
+        # Step 2: Build line items XML with truncated item names
         print(f"\n--- Building Invoice with {len(parsed_data['line_items'])} line items ---")
         lines_xml = ""
         for item in parsed_data['line_items']:
             part_number = item['part_number']
+            qb_item_name = get_qb_item_name(part_number)  # Truncated name for ItemRef
             description = item['description']
+            # Full part number goes in description so nothing is lost
+            full_desc = f"{part_number} | {description}"
             quantity = int(item['quantity']) if item['quantity'] else 1
             rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
             
             lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
-            <FullName>{escape_xml(part_number)}</FullName>
+            <FullName>{escape_xml(qb_item_name)}</FullName>
           </ItemRef>
-          <Desc>{escape_xml(description)}</Desc>
+          <Desc>{escape_xml(full_desc)}</Desc>
           <Quantity>{quantity}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
