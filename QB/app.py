@@ -22,7 +22,8 @@ UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Environment variable to toggle real QB vs mock mode
-USE_REAL_QB = os.getenv('USE_REAL_QB', 'false').lower() == 'true'
+# Default to True since we're working with real QuickBooks Desktop
+USE_REAL_QB = os.getenv('USE_REAL_QB', 'true').lower() == 'true'
 
 
 # =============================================================================
