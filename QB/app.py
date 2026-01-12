@@ -178,7 +178,7 @@ def test_query_invoices():
     
     try:
         from quickbooks_desktop.qb_helpers import query_invoices
-        result = query_invoices(max_returned=10)
+        result = query_invoices(max_returned=None)  # None = get all invoices
         
         duration_ms = int((time.time() - start_time) * 1000)
         
@@ -186,7 +186,7 @@ def test_query_invoices():
         output_lines = []
         if result['success']:
             output_lines.append(f"✅ {result['message']}\n")
-            output_lines.append("Recent invoices:")
+            output_lines.append("All invoices:")
             for inv in result['invoices']:
                 output_lines.append(f"  #{inv['ref_number']} - {inv['date']} (TxnID: {inv['txn_id'][:10]}...)")
             if not result['invoices']:

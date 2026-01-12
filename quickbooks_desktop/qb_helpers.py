@@ -97,12 +97,12 @@ def query_customers(max_returned=10):
             qb.close_qb()
 
 
-def query_invoices(max_returned=10):
+def query_invoices(max_returned=None):
     """
-    Query recent invoices from QuickBooks.
+    Query invoices from QuickBooks.
     
     Args:
-        max_returned: Maximum number of invoices to return
+        max_returned: Maximum number of invoices to return. If None, returns all invoices.
         
     Returns:
         dict with success, invoices list, and raw response
@@ -113,13 +113,15 @@ def query_invoices(max_returned=10):
         qb.open_connection()
         qb.begin_session()
         
+        # Conditionally include MaxReturned - omit it to get all invoices
+        max_returned_tag = f"      <MaxReturned>{max_returned}</MaxReturned>\n" if max_returned is not None else ""
+        
         xml = f"""<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
 <QBXML>
   <QBXMLMsgsRq onError="stopOnError">
     <InvoiceQueryRq>
-      <MaxReturned>{max_returned}</MaxReturned>
-    </InvoiceQueryRq>
+{max_returned_tag}    </InvoiceQueryRq>
   </QBXMLMsgsRq>
 </QBXML>"""
         
