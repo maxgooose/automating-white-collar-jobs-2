@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QB Diagnostics | UED</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #121212;
+            --bg-card: #1a1a1a;
+            --bg-hover: #242424;
+            --bg-console: #0d0d0d;
+            --border-subtle: #2a2a2a;
+            --border-accent: #333;
+            --text-primary: #e8e8e8;
+            --text-secondary: #888;
+            --text-muted: #555;
+            --accent-green: #00d26a;
+            --accent-green-dim: #00d26a20;
+            --accent-blue: #3b82f6;
+            --accent-blue-dim: #3b82f620;
+            --accent-orange: #f59e0b;
+            --accent-orange-dim: #f59e0b20;
+            --accent-red: #ef4444;
+            --accent-red-dim: #ef444420;
+            --accent-purple: #a855f7;
+            --accent-purple-dim: #a855f720;
+            --font-sans: 'Outfit', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            line-height: 1.5;
+            position: relative;
+        }
+
+        .logo {
+            position: absolute;
+            top: 48px;
+            left: 64px;
+            margin: 0;
+            padding: 0;
+        }
+
+        .logo-text {
+            font-family: var(--font-mono);
+            font-size: 72px;
+            font-weight: 700;
+            letter-spacing: 12px;
+            color: var(--text-primary);
+        }
+
+        .logo-subtitle {
+            font-size: 16px;
+            color: var(--text-muted);
+            letter-spacing: 2px;
+            margin-top: 8px;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 100vh;
+            padding: 120px 20px 40px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 0 80px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .nav-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 14px;
+            margin-top: 12px;
+            transition: color 0.2s;
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Test Buttons Grid */
+        .test-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .test-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 20px 16px;
+            background: var(--bg-hover);
+            border: 1px solid var(--border-accent);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+            color: var(--text-primary);
+        }
+
+        .test-btn:hover:not(:disabled) {
+            border-color: var(--accent-green);
+            background: var(--accent-green-dim);
+        }
+
+        .test-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .test-btn.running {
+            border-color: var(--accent-orange);
+            background: var(--accent-orange-dim);
+        }
+
+        .test-btn .icon {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .test-btn .icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+        }
+
+        .test-btn .label {
+            font-size: 13px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .test-btn .desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* Color coding for different test types */
+        .test-btn[data-test="connection"] .icon { color: var(--accent-green); }
+        .test-btn[data-test="query-customers"] .icon { color: var(--accent-blue); }
+        .test-btn[data-test="query-invoices"] .icon { color: var(--accent-purple); }
+        .test-btn[data-test="create-invoice"] .icon { color: var(--accent-orange); }
+        .test-btn[data-test="setup-data"] .icon { color: var(--accent-green); }
+
+        /* Console Output */
+        .console-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .console-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .clear-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: transparent;
+            border: 1px solid var(--border-accent);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-family: var(--font-sans);
+            transition: all 0.2s;
+        }
+
+        .clear-btn:hover {
+            border-color: var(--text-muted);
+            color: var(--text-secondary);
+        }
+
+        .console {
+            background: var(--bg-console);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 16px;
+            min-height: 300px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .console:empty::before {
+            content: 'Output will appear here...';
+            color: var(--text-muted);
+        }
+
+        .console-entry {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border-left: 3px solid;
+        }
+
+        .console-entry:last-child {
+            margin-bottom: 0;
+        }
+
+        .console-entry.success {
+            background: var(--accent-green-dim);
+            border-left-color: var(--accent-green);
+        }
+
+        .console-entry.error {
+            background: var(--accent-red-dim);
+            border-left-color: var(--accent-red);
+        }
+
+        .console-entry.running {
+            background: var(--accent-orange-dim);
+            border-left-color: var(--accent-orange);
+        }
+
+        .console-entry .entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .console-entry .entry-title {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .console-entry .entry-meta {
+            display: flex;
+            gap: 12px;
+        }
+
+        .console-entry .entry-output {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-accent);
+            border-top-color: var(--accent-orange);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Custom scrollbar */
+        .console::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .console::-webkit-scrollbar-track {
+            background: var(--bg-console);
+        }
+
+        .console::-webkit-scrollbar-thumb {
+            background: var(--border-accent);
+            border-radius: 3px;
+        }
+
+        .console::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Status bar */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-subtle);
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+
+        .status-dot.connected {
+            background: var(--accent-green);
+        }
+
+        .status-dot.error {
+            background: var(--accent-red);
+        }
+    </style>
+</head>
+<body>
+    <div class="logo">
+        <div class="logo-text">UED</div>
+        <div class="logo-subtitle">Universal Executive Dashboard</div>
+    </div>
+    <div class="main">
+        <div class="container">
+            <div class="card">
+                <div class="header">
+                    <h1>QuickBooks Diagnostics</h1>
+                    <p>Test QuickBooks Desktop connection and operations</p>
+                    <a href="/" class="nav-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                        </svg>
+                        Back to Invoice Generator
+                    </a>
+                </div>
+
+                <div class="test-grid">
+                    <button class="test-btn" data-test="connection" onclick="runTest('connection')">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244" />
+                            </svg>
+                        </div>
+                        <div class="label">Test Connection</div>
+                        <div class="desc">Verify QB is accessible</div>
+                    </button>
+
+                    <button class="test-btn" data-test="query-customers" onclick="runTest('query-customers')">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                            </svg>
+                        </div>
+                        <div class="label">Query Customers</div>
+                        <div class="desc">Read customer list</div>
+                    </button>
+
+                    <button class="test-btn" data-test="query-invoices" onclick="runTest('query-invoices')">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                            </svg>
+                        </div>
+                        <div class="label">Query Invoices</div>
+                        <div class="desc">Read invoice list</div>
+                    </button>
+
+                    <button class="test-btn" data-test="create-invoice" onclick="runTest('create-invoice')">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div class="label">Create Test Invoice</div>
+                        <div class="desc">Verify write access</div>
+                    </button>
+
+                    <button class="test-btn" data-test="setup-data" onclick="runTest('setup-data')">
+                        <div class="icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
+                            </svg>
+                        </div>
+                        <div class="label">Setup Sample Data</div>
+                        <div class="desc">Create test customer & items</div>
+                    </button>
+                </div>
+
+                <div class="console-header">
+                    <span class="console-title">Output Console</span>
+                    <button class="clear-btn" onclick="clearConsole()">Clear</button>
+                </div>
+                
+                <div class="console" id="console"></div>
+
+                <div class="status-bar">
+                    <div class="status-indicator">
+                        <div class="status-dot" id="statusDot"></div>
+                        <span id="statusText">Ready</span>
+                    </div>
+                    <span id="lastRun">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const consoleEl = document.getElementById('console');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const lastRunEl = document.getElementById('lastRun');
+        
+        let isRunning = false;
+
+        const testNames = {
+            'connection': 'Test Connection',
+            'query-customers': 'Query Customers',
+            'query-invoices': 'Query Invoices',
+            'create-invoice': 'Create Test Invoice',
+            'setup-data': 'Setup Sample Data'
+        };
+
+        async function runTest(testType) {
+            if (isRunning) return;
+            
+            isRunning = true;
+            const btn = document.querySelector(`[data-test="${testType}"]`);
+            const allBtns = document.querySelectorAll('.test-btn');
+            
+            // Disable all buttons
+            allBtns.forEach(b => b.disabled = true);
+            btn.classList.add('running');
+            
+            // Update status
+            statusDot.className = 'status-dot';
+            statusText.textContent = 'Running...';
+            
+            // Add running entry to console
+            const entryId = Date.now();
+            const runningHtml = `
+                <div class="console-entry running" id="entry-${entryId}">
+                    <div class="entry-header">
+                        <span class="entry-title">${testNames[testType]}</span>
+                        <span class="entry-meta">
+                            <span class="spinner"></span>
+                        </span>
+                    </div>
+                    <div class="entry-output">Running test...</div>
+                </div>
+            `;
+            consoleEl.insertAdjacentHTML('beforeend', runningHtml);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+            
+            try {
+                const response = await fetch(`/test/${testType}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                // Update the entry
+                const entry = document.getElementById(`entry-${entryId}`);
+                entry.className = `console-entry ${data.success ? 'success' : 'error'}`;
+                entry.innerHTML = `
+                    <div class="entry-header">
+                        <span class="entry-title">${testNames[testType]}</span>
+                        <span class="entry-meta">
+                            <span>${data.duration_ms}ms</span>
+                            <span>${new Date(data.timestamp).toLocaleTimeString()}</span>
+                        </span>
+                    </div>
+                    <div class="entry-output">${escapeHtml(data.output)}</div>
+                `;
+                
+                // Update status
+                statusDot.className = `status-dot ${data.success ? 'connected' : 'error'}`;
+                statusText.textContent = data.success ? 'Last test passed' : 'Last test failed';
+                lastRunEl.textContent = `Last run: ${new Date(data.timestamp).toLocaleTimeString()}`;
+                
+            } catch (err) {
+                // Update the entry with error
+                const entry = document.getElementById(`entry-${entryId}`);
+                entry.className = 'console-entry error';
+                entry.innerHTML = `
+                    <div class="entry-header">
+                        <span class="entry-title">${testNames[testType]}</span>
+                        <span class="entry-meta">
+                            <span>${new Date().toLocaleTimeString()}</span>
+                        </span>
+                    </div>
+                    <div class="entry-output">❌ Network Error: ${err.message}\n\nMake sure the Flask server is running.</div>
+                `;
+                
+                statusDot.className = 'status-dot error';
+                statusText.textContent = 'Connection error';
+            }
+            
+            // Re-enable buttons
+            allBtns.forEach(b => b.disabled = false);
+            btn.classList.remove('running');
+            isRunning = false;
+            
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function clearConsole() {
+            consoleEl.innerHTML = '';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
