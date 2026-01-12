@@ -21,7 +21,7 @@ from quickbooks_desktop.session_manager import SessionManager
 
 def escape_xml(text):
     """
-    Escape special characters for XML.
+    Escape special characters for XML and remove invalid XML characters.
     
     Args:
         text: String to escape
@@ -29,9 +29,28 @@ def escape_xml(text):
     Returns:
         XML-safe string
     """
+    if text is None:
+        return ""
+    
     if not isinstance(text, str):
         text = str(text)
     
+    # Remove control characters that are invalid in XML (except tab, newline, carriage return)
+    # Valid XML chars: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD]
+    cleaned = []
+    for char in text:
+        code = ord(char)
+        if code == 0x9 or code == 0xA or code == 0xD:  # tab, newline, carriage return
+            cleaned.append(char)
+        elif code >= 0x20 and code <= 0xD7FF:
+            cleaned.append(char)
+        elif code >= 0xE000 and code <= 0xFFFD:
+            cleaned.append(char)
+        # else: skip invalid characters
+    
+    text = ''.join(cleaned)
+    
+    # Escape XML special characters (order matters - & must be first!)
     text = text.replace('&', '&amp;')
     text = text.replace('<', '&lt;')
     text = text.replace('>', '&gt;')
@@ -145,20 +164,37 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         # Build line items XML - use the EXISTING QB item, put part details in description
         print(f"\n--- Step 4: Building Invoice XML ({len(parsed_data['line_items'])} line items) ---")
         lines_xml = ""
-        for item in parsed_data['line_items']:
-            part_number = item['part_number']
-            description = item['description']
-            # Put full part number + description in the Desc field (nothing is lost)
+        for idx, item in enumerate(parsed_data['line_items'], 1):
+            part_number = escape_xml(str(item.get('part_number', '') or ''))
+            description = escape_xml(str(item.get('description', '') or ''))
+            
+            # Put full part number + description in the Desc field (limit to 4095 chars - QB max)
             full_desc = f"{part_number} | {description}"
-            quantity = int(item['quantity']) if item['quantity'] else 1
-            rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
+            if len(full_desc) > 4095:
+                full_desc = full_desc[:4092] + "..."
+            
+            # Ensure quantity is a valid integer
+            try:
+                quantity = int(item.get('quantity', 1) or 1)
+                if quantity < 1:
+                    quantity = 1
+            except (ValueError, TypeError):
+                quantity = 1
+            
+            # Ensure rate is a valid float
+            try:
+                rate = float(item.get('unit_cost', 0) or 0)
+            except (ValueError, TypeError):
+                rate = 0.00
+            
+            print(f"  Line {idx}: qty={quantity}, rate={rate:.2f}, desc={full_desc[:50]}...")
             
             lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
             <FullName>{escape_xml(qb_item)}</FullName>
           </ItemRef>
-          <Desc>{escape_xml(full_desc)}</Desc>
+          <Desc>{full_desc}</Desc>
           <Quantity>{quantity}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
@@ -188,10 +224,12 @@ def create_qb_invoice(parsed_data: dict) -> dict:
   </QBXMLMsgsRq>
 </QBXML>"""
         
-        # Debug: print the XML being sent
+        # Debug: print the FULL XML being sent (so we can see what breaks)
         print("\n--- Step 5: Sending Invoice to QuickBooks ---")
-        print("INVOICE XML:")
-        print(invoice_xml[:500] + "..." if len(invoice_xml) > 500 else invoice_xml)
+        print("FULL INVOICE XML:")
+        print("=" * 40)
+        print(invoice_xml)
+        print("=" * 40)
         
         # Send request to QuickBooks
         try:
