@@ -13,6 +13,28 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from quickbooks_desktop.session_manager import SessionManager
 
 
+def escape_xml(text):
+    """
+    Escape special characters for XML.
+    
+    Args:
+        text: String to escape
+        
+    Returns:
+        XML-safe string
+    """
+    if not isinstance(text, str):
+        text = str(text)
+    
+    text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    text = text.replace('"', '&quot;')
+    text = text.replace("'", '&apos;')
+    
+    return text
+
+
 def get_first_customer(qb):
     """Query QB for the first available customer."""
     xml = """<?xml version="1.0" encoding="utf-8"?>
@@ -27,18 +49,57 @@ def get_first_customer(qb):
     return match.group(1) if match else None
 
 
-def get_first_item(qb):
-    """Query QB for the first available item."""
-    xml = """<?xml version="1.0" encoding="utf-8"?>
+def item_exists(qb, item_name):
+    """Check if an item exists in QuickBooks."""
+    xml = f"""<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
 <QBXML>
   <QBXMLMsgsRq onError="stopOnError">
-    <ItemQueryRq><MaxReturned>1</MaxReturned></ItemQueryRq>
+    <ItemQueryRq>
+      <FullName>{escape_xml(item_name)}</FullName>
+    </ItemQueryRq>
   </QBXMLMsgsRq>
 </QBXML>"""
     response = qb.send_request(xml)
-    match = re.search(r'<FullName>([^<]+)</FullName>', response)
-    return match.group(1) if match else None
+    return 'statusCode="0"' in response and '<FullName>' in response
+
+
+def create_service_item(qb, item_name, description="", price=0.00):
+    """Create a service item in QuickBooks if it doesn't exist."""
+    if item_exists(qb, item_name):
+        print(f"  Item already exists: {item_name}")
+        return True
+    
+    print(f"  Creating item: {item_name}")
+    xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <ItemServiceAddRq>
+      <ItemServiceAdd>
+        <Name>{escape_xml(item_name[:31])}</Name>
+        <SalesOrPurchase>
+          <Desc>{escape_xml(description or item_name)}</Desc>
+          <Price>{price:.2f}</Price>
+          <AccountRef>
+            <FullName>Sales</FullName>
+          </AccountRef>
+        </SalesOrPurchase>
+      </ItemServiceAdd>
+    </ItemServiceAddRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+    
+    response = qb.send_request(xml)
+    if 'statusCode="0"' in response:
+        print(f"    ✓ Created successfully")
+        return True
+    else:
+        # Extract error
+        error_match = re.search(r'statusMessage="([^"]+)"', response)
+        error_msg = error_match.group(1) if error_match else "Unknown error"
+        print(f"    ✗ Failed: {error_msg}")
+        return False
 
 
 def create_qb_invoice(parsed_data: dict) -> dict:
@@ -67,33 +128,51 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         customer = get_first_customer(qb)
         if not customer:
             raise Exception("No customers found in QuickBooks. Please add a customer first.")
-        print(f"Using QB customer: {repr(customer)}")
-        print(f"  Escaped: {repr(escape_xml(customer))}")
+        print(f"Using QB customer: {customer}")
         
-        # Get existing item from QB (use as generic item for all lines)
-        generic_item = get_first_item(qb)
-        if not generic_item:
-            raise Exception("No items found in QuickBooks. Please add an item first.")
-        print(f"Using QB item: {repr(generic_item)}")
-        print(f"  Escaped: {repr(escape_xml(generic_item))}")
+        # Step 1: Collect unique item names and ensure they exist in QB
+        print("\n--- Validating/Creating Items in QuickBooks ---")
+        unique_items = set()
+        for item in parsed_data['line_items']:
+            unique_items.add(item['part_number'])
         
-        # Build line items XML
-        # Use the generic item for all lines, put part details in description
+        print(f"Found {len(unique_items)} unique items to validate")
+        
+        items_created = 0
+        items_existed = 0
+        items_failed = 0
+        
+        for item_name in unique_items:
+            # Try to create item (will skip if exists)
+            if item_exists(qb, item_name):
+                items_existed += 1
+                print(f"  ✓ Exists: {item_name}")
+            else:
+                if create_service_item(qb, item_name, item_name, 0.00):
+                    items_created += 1
+                else:
+                    items_failed += 1
+        
+        print(f"\nItem summary: {items_existed} existed, {items_created} created, {items_failed} failed")
+        
+        if items_failed > 0:
+            raise Exception(f"Failed to create {items_failed} items in QuickBooks")
+        
+        # Step 2: Build line items XML using actual part numbers
+        print("\n--- Building Invoice XML ---")
         lines_xml = ""
         for item in parsed_data['line_items']:
-            # Put part number + description in the Desc field
             part_number = item['part_number']
             description = item['description']
-            full_desc = escape_xml(f"{part_number} - {description}")
             quantity = int(item['quantity']) if item['quantity'] else 1
             rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
             
             lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
-            <FullName>{escape_xml(generic_item)}</FullName>
+            <FullName>{escape_xml(part_number)}</FullName>
           </ItemRef>
-          <Desc>{full_desc}</Desc>
+          <Desc>{escape_xml(description)}</Desc>
           <Quantity>{quantity}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
@@ -217,25 +296,3 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             qb.end_session()
         if qb.connection_open:
             qb.close_connection()
-
-
-def escape_xml(text):
-    """
-    Escape special characters for XML.
-    
-    Args:
-        text: String to escape
-        
-    Returns:
-        XML-safe string
-    """
-    if not isinstance(text, str):
-        text = str(text)
-    
-    text = text.replace('&', '&amp;')
-    text = text.replace('<', '&lt;')
-    text = text.replace('>', '&gt;')
-    text = text.replace('"', '&quot;')
-    text = text.replace("'", '&apos;')
-    
-    return text
