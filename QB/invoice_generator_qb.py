@@ -67,13 +67,15 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         customer = get_first_customer(qb)
         if not customer:
             raise Exception("No customers found in QuickBooks. Please add a customer first.")
-        print(f"Using QB customer: {customer}")
+        print(f"Using QB customer: {repr(customer)}")
+        print(f"  Escaped: {repr(escape_xml(customer))}")
         
         # Get existing item from QB (use as generic item for all lines)
         generic_item = get_first_item(qb)
         if not generic_item:
             raise Exception("No items found in QuickBooks. Please add an item first.")
-        print(f"Using QB item: {generic_item}")
+        print(f"Using QB item: {repr(generic_item)}")
+        print(f"  Escaped: {repr(escape_xml(generic_item))}")
         
         # Build line items XML
         # Use the generic item for all lines, put part details in description
