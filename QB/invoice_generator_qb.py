@@ -49,18 +49,69 @@ def get_first_customer(qb):
     return match.group(1) if match else None
 
 
-def get_first_item(qb):
-    """Query QB for the first available item to use as generic line item."""
+def get_income_account(qb):
+    """Query QB for an income account to use when creating items."""
     xml = """<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
 <QBXML>
   <QBXMLMsgsRq onError="stopOnError">
-    <ItemQueryRq><MaxReturned>1</MaxReturned></ItemQueryRq>
+    <AccountQueryRq>
+      <AccountType>Income</AccountType>
+      <MaxReturned>1</MaxReturned>
+    </AccountQueryRq>
   </QBXMLMsgsRq>
 </QBXML>"""
     response = qb.send_request(xml)
     match = re.search(r'<FullName>([^<]+)</FullName>', response)
     return match.group(1) if match else None
+
+
+def item_exists(qb, item_name):
+    """Check if an item exists in QuickBooks."""
+    xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <ItemQueryRq>
+      <FullName>{escape_xml(item_name)}</FullName>
+    </ItemQueryRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+    response = qb.send_request(xml)
+    return 'statusCode="0"' in response and '<FullName>' in response
+
+
+def create_service_item(qb, item_name, income_account, description="", price=0.00):
+    """Create a service item in QuickBooks."""
+    # QB item names have a 31 character limit
+    short_name = item_name[:31]
+    
+    xml = f"""<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <ItemServiceAddRq>
+      <ItemServiceAdd>
+        <Name>{escape_xml(short_name)}</Name>
+        <SalesOrPurchase>
+          <Desc>{escape_xml(description or item_name)}</Desc>
+          <Price>{price:.2f}</Price>
+          <AccountRef>
+            <FullName>{escape_xml(income_account)}</FullName>
+          </AccountRef>
+        </SalesOrPurchase>
+      </ItemServiceAdd>
+    </ItemServiceAddRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+    
+    response = qb.send_request(xml)
+    if 'statusCode="0"' in response:
+        return True, "Created"
+    else:
+        error_match = re.search(r'statusMessage="([^"]+)"', response)
+        error_msg = error_match.group(1) if error_match else "Unknown error"
+        return False, error_msg
 
 
 def create_qb_invoice(parsed_data: dict) -> dict:
@@ -85,37 +136,63 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         
         header = parsed_data['header']
         
-        # Get existing customer from QB (like the test invoice does)
+        # Get existing customer from QB
         customer = get_first_customer(qb)
         if not customer:
             raise Exception("No customers found in QuickBooks. Please add a customer first.")
         print(f"Using QB customer: {customer}")
         
-        # Get existing item from QB (use as generic item for ALL line items)
-        # This is the same approach the working test invoice uses
-        generic_item = get_first_item(qb)
-        if not generic_item:
-            raise Exception("No items found in QuickBooks. Please add an item first.")
-        print(f"Using QB item: {generic_item}")
+        # Get income account from QB (needed for creating items)
+        income_account = get_income_account(qb)
+        if not income_account:
+            raise Exception("No income accounts found in QuickBooks.")
+        print(f"Using income account: {income_account}")
         
-        # Build line items XML
-        # Use the generic item for all lines, put part number + description in Desc field
+        # Step 1: Ensure all items exist in QB (create if missing)
+        print(f"\n--- Validating/Creating Items ---")
+        unique_items = set()
+        for item in parsed_data['line_items']:
+            unique_items.add(item['part_number'])
+        
+        print(f"Found {len(unique_items)} unique items")
+        
+        items_created = 0
+        items_existed = 0
+        items_failed = []
+        
+        for item_name in unique_items:
+            if item_exists(qb, item_name):
+                items_existed += 1
+            else:
+                success, msg = create_service_item(qb, item_name, income_account)
+                if success:
+                    items_created += 1
+                    print(f"  ✓ Created: {item_name}")
+                else:
+                    items_failed.append((item_name, msg))
+                    print(f"  ✗ Failed: {item_name} - {msg}")
+        
+        print(f"\nItems: {items_existed} existed, {items_created} created, {len(items_failed)} failed")
+        
+        if items_failed:
+            # Show first few failures
+            raise Exception(f"Failed to create items: {items_failed[0][0]} - {items_failed[0][1]}")
+        
+        # Step 2: Build line items XML with actual part numbers
         print(f"\n--- Building Invoice with {len(parsed_data['line_items'])} line items ---")
         lines_xml = ""
         for item in parsed_data['line_items']:
-            # Combine part number and description for the line description
             part_number = item['part_number']
             description = item['description']
-            full_desc = f"{part_number} | {description}"
             quantity = int(item['quantity']) if item['quantity'] else 1
             rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
             
             lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
-            <FullName>{escape_xml(generic_item)}</FullName>
+            <FullName>{escape_xml(part_number)}</FullName>
           </ItemRef>
-          <Desc>{escape_xml(full_desc)}</Desc>
+          <Desc>{escape_xml(description)}</Desc>
           <Quantity>{quantity}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
