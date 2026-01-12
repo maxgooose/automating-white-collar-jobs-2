@@ -44,6 +44,8 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             # Escape special characters in text fields
             part_number = escape_xml(item['part_number'])
             description = escape_xml(item['description'])
+            quantity = int(item['quantity']) if item['quantity'] else 1
+            rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
             
             lines_xml += f"""
         <InvoiceLineAdd>
@@ -51,13 +53,19 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             <FullName>{part_number}</FullName>
           </ItemRef>
           <Desc>{description}</Desc>
-          <Quantity>{item['quantity']}</Quantity>
-          <Rate>{item['unit_cost']:.2f}</Rate>
+          <Quantity>{quantity}</Quantity>
+          <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
         
         # Build full invoice XML
         customer = escape_xml(header['customer'])
         memo = escape_xml(f"RR# {header['rr_number']} - {header['order_number']}")
+        txn_date = header['date']
+        
+        # Validate date format (must be YYYY-MM-DD)
+        if not txn_date or len(txn_date) != 10 or txn_date[4] != '-' or txn_date[7] != '-':
+            from datetime import date
+            txn_date = date.today().isoformat()
         
         invoice_xml = f"""<?xml version="1.0" encoding="utf-8"?>
 <?qbxml version="13.0"?>
@@ -68,13 +76,19 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         <CustomerRef>
           <FullName>{customer}</FullName>
         </CustomerRef>
-        <TxnDate>{header['date']}</TxnDate>
-        <Memo>{memo}</Memo>
-        {lines_xml}
+        <TxnDate>{txn_date}</TxnDate>
+        <Memo>{memo}</Memo>{lines_xml}
       </InvoiceAdd>
     </InvoiceAddRq>
   </QBXMLMsgsRq>
 </QBXML>"""
+        
+        # Debug: print the XML being sent (can be removed later)
+        print("=" * 50)
+        print("INVOICE XML BEING SENT TO QB:")
+        print("=" * 50)
+        print(invoice_xml)
+        print("=" * 50)
         
         # Send request to QuickBooks
         response = qb.send_request(invoice_xml)

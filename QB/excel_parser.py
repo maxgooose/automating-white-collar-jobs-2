@@ -72,13 +72,32 @@ def parse_receiving_report(filepath: str) -> dict:
     
     order_number = str(first_row.get(col_order, 'N/A')) if col_order else 'N/A'
     rr_number = str(first_row.get(col_rr, 'N/A')) if col_rr else 'N/A'
-    date = str(first_row.get(col_date, 'N/A')) if col_date else 'N/A'
+    raw_date = first_row.get(col_date) if col_date else None
     
     # Clean up RR number (might be float)
     try:
         rr_number = str(int(float(rr_number)))
     except (ValueError, TypeError):
         pass
+    
+    # Format date as YYYY-MM-DD for QuickBooks
+    date = None
+    if raw_date is not None and pd.notna(raw_date):
+        try:
+            if hasattr(raw_date, 'strftime'):
+                # It's already a datetime object
+                date = raw_date.strftime('%Y-%m-%d')
+            else:
+                # Try to parse it
+                parsed = pd.to_datetime(raw_date)
+                date = parsed.strftime('%Y-%m-%d')
+        except:
+            pass
+    
+    # Default to today if no valid date
+    if not date:
+        from datetime import date as dt_date
+        date = dt_date.today().isoformat()
     
     # Group items by PART NUMBER + DESCRIPTION
     line_items = defaultdict(lambda: {
