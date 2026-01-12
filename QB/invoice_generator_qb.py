@@ -22,8 +22,13 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         
     Returns:
         dict with invoice result and QB response (same format as mock generator)
+
+    Example: 
+        parsed data -> excel parser -> parsed_data -> invoice generator -> invoice xml -> send to qb -> response -> return to app.py
     """
     qb = SessionManager()
+
+    # try: if connection fails, return error. if session fails, return error. if invoice fails, return error. if response is not 0, return error. i think i can type pretty fast now its not at a point where this is negotiable or debatable .i seke who i am and 
     
     try:
         # Connect to QuickBooks
@@ -133,6 +138,8 @@ def create_qb_invoice(parsed_data: dict) -> dict:
             status_code = code_match.group(1) if code_match else "Unknown"
             
             raise Exception(f"QuickBooks error ({status_code}): {error_msg}")
+
+                        
             
     except Exception as e:
         return {

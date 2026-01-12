@@ -2,6 +2,7 @@
 QuickBooks Desktop Session Manager
 Wraps the QB SDK connection lifecycle for Python.
 """
+import pythoncom
 
 
 class SessionManager:
@@ -28,6 +29,7 @@ class SessionManager:
         self.ticket = None
         self.connection_open = False
         self.session_begun = False
+        self.com_initialized = False
         
     def open_connection(self):
         """
@@ -41,6 +43,8 @@ class SessionManager:
         
         try:
             import win32com.client
+            pythoncom.CoInitialize()
+            self.com_initialized = True
             self.qbXMLRP = win32com.client.Dispatch("QBXMLRP2.RequestProcessor")
             self.qbXMLRP.OpenConnection("", self.application_name)
             self.connection_open = True
@@ -112,6 +116,13 @@ class SessionManager:
             except:
                 pass  # Ignore errors on cleanup
             self.connection_open = False
+        
+        if self.com_initialized:
+            try:
+                pythoncom.CoUninitialize()
+            except:
+                pass  # Ignore errors on cleanup
+            self.com_initialized = False
             
     def close_qb(self):
         """Alias for close_connection (for backward compatibility)."""
