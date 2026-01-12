@@ -13,6 +13,34 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from quickbooks_desktop.session_manager import SessionManager
 
 
+def get_first_customer(qb):
+    """Query QB for the first available customer."""
+    xml = """<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <CustomerQueryRq><MaxReturned>1</MaxReturned></CustomerQueryRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+    response = qb.send_request(xml)
+    match = re.search(r'<FullName>([^<]+)</FullName>', response)
+    return match.group(1) if match else None
+
+
+def get_first_item(qb):
+    """Query QB for the first available item."""
+    xml = """<?xml version="1.0" encoding="utf-8"?>
+<?qbxml version="13.0"?>
+<QBXML>
+  <QBXMLMsgsRq onError="stopOnError">
+    <ItemQueryRq><MaxReturned>1</MaxReturned></ItemQueryRq>
+  </QBXMLMsgsRq>
+</QBXML>"""
+    response = qb.send_request(xml)
+    match = re.search(r'<FullName>([^<]+)</FullName>', response)
+    return match.group(1) if match else None
+
+
 def create_qb_invoice(parsed_data: dict) -> dict:
     """
     Create a real invoice in QuickBooks from parsed Excel data.
@@ -27,8 +55,6 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         parsed data -> excel parser -> parsed_data -> invoice generator -> invoice xml -> send to qb -> response -> return to app.py
     """
     qb = SessionManager()
-
-    # try: if connection fails, return error. if session fails, return error. if invoice fails, return error. if response is not 0, return error. i think i can type pretty fast now its not at a point where this is negotiable or debatable .i seke who i am and 
     
     try:
         # Connect to QuickBooks
@@ -37,28 +63,40 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         
         header = parsed_data['header']
         
+        # Get existing customer from QB (like the test invoice does)
+        customer = get_first_customer(qb)
+        if not customer:
+            raise Exception("No customers found in QuickBooks. Please add a customer first.")
+        print(f"Using QB customer: {customer}")
+        
+        # Get existing item from QB (use as generic item for all lines)
+        generic_item = get_first_item(qb)
+        if not generic_item:
+            raise Exception("No items found in QuickBooks. Please add an item first.")
+        print(f"Using QB item: {generic_item}")
+        
         # Build line items XML
-        # For each unique part number, we create one line item with quantity = number of IMEIs
+        # Use the generic item for all lines, put part details in description
         lines_xml = ""
         for item in parsed_data['line_items']:
-            # Escape special characters in text fields
-            part_number = escape_xml(item['part_number'])
-            description = escape_xml(item['description'])
+            # Put part number + description in the Desc field
+            part_number = item['part_number']
+            description = item['description']
+            full_desc = escape_xml(f"{part_number} - {description}")
             quantity = int(item['quantity']) if item['quantity'] else 1
             rate = float(item['unit_cost']) if item['unit_cost'] else 0.00
             
             lines_xml += f"""
         <InvoiceLineAdd>
           <ItemRef>
-            <FullName>{part_number}</FullName>
+            <FullName>{escape_xml(generic_item)}</FullName>
           </ItemRef>
-          <Desc>{description}</Desc>
+          <Desc>{full_desc}</Desc>
           <Quantity>{quantity}</Quantity>
           <Rate>{rate:.2f}</Rate>
         </InvoiceLineAdd>"""
         
         # Build full invoice XML
-        customer = escape_xml(header['customer'])
         memo = escape_xml(f"RR# {header['rr_number']} - {header['order_number']}")
         txn_date = header['date']
         
@@ -74,7 +112,7 @@ def create_qb_invoice(parsed_data: dict) -> dict:
     <InvoiceAddRq>
       <InvoiceAdd>
         <CustomerRef>
-          <FullName>{customer}</FullName>
+          <FullName>{escape_xml(customer)}</FullName>
         </CustomerRef>
         <TxnDate>{txn_date}</TxnDate>
         <Memo>{memo}</Memo>{lines_xml}
@@ -92,6 +130,13 @@ def create_qb_invoice(parsed_data: dict) -> dict:
         
         # Send request to QuickBooks
         response = qb.send_request(invoice_xml)
+        
+        # Debug: print QB response
+        print("=" * 50)
+        print("QUICKBOOKS RESPONSE:")
+        print("=" * 50)
+        print(response)
+        print("=" * 50)
         
         # Parse response
         if 'statusCode="0"' in response:
@@ -122,7 +167,7 @@ def create_qb_invoice(parsed_data: dict) -> dict:
                 'invoice': {
                     'number': invoice_number,
                     'txn_id': txn_id,
-                    'customer': header['customer'],
+                    'customer': customer,  # Actual QB customer used
                     'date': header['date'],
                     'memo': f"RR# {header['rr_number']} - {header['order_number']}",
                     'line_items': qb_line_items,
